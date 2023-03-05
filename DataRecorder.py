@@ -6,12 +6,15 @@ import threading
 import time
 import csv
 import serial.tools.list_ports
+from paho.mqtt import client as mqtt_client
+
+
 
 #MQTT Credintial
-broker = 'broker.emqx.io'
+broker = 'broker.hivemq.com'
 port = 1883
-topic = "EM/mqtt"
-client_id = f'python-mqtt-{random.randint(0, 1000)}'
+#topic = "EMEWS/mqtt"
+client_id = 1
 #username = 'emqx'
 #password = 'public'
 
@@ -26,12 +29,41 @@ time = 0
 
 heartbeat_flag=False;                                           #flag for heart beat                                                                                           
 
+
+#print all availbale ports
 ports = list(serial.tools.list_ports.comports())
 for p in ports:
     print (p)
 
 collect_data=True;
 
+#connect MQTT
+def connect_mqtt():
+    def on_connect(client, userdata, flags, rc):
+        if rc == 0:
+            print("Connected to MQTT Broker!")
+        else:
+            print("Failed to connect, return code %d\n", rc)
+
+    client = mqtt_client.Client(client_id)
+    client.username_pw_set(username, password)
+    client.on_connect = on_connect
+    client.connect(broker, port)
+    return client
+
+#heartbeat
+def publishHeartBeat(client):
+    topic = "EMEWS/mqtt/heartbeat"
+    msg = f"messages: {ok}"
+    result = client.publish(topic, msg)
+    status = result[0]
+    if status == 0:
+        print(f"Send `{msg}` to topic `{topic}`")
+    else:
+        print(f"Failed to send message to topic {topic}")
+
+#StartMQTT
+client=connect_mqtt()
 
 def collectData():
     global data
@@ -73,6 +105,7 @@ def heartBeat():
     while True:
         if(heartbeat_flag==True):
             #Send MQTT beat
+            publishHeartBeat()
             heartbeat_flag=False
         time.sleep(5)   
 
