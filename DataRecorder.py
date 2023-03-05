@@ -107,7 +107,7 @@ def heartBeat():
             #Send MQTT beat
             publishHeartBeat()
             heartbeat_flag=False
-        time.sleep(5)   
+        time.sleep(1)   
 
 
 collect = threading.Thread(target=collectData)
