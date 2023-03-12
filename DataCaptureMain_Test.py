@@ -3,9 +3,12 @@ import pandas as pd
 import datetime
 import serial as sr
 import threading
+from time import sleep
 
 from Config import Config
-from paho.mqtt import client as mqtt_client
+#from paho.mqtt import client as mqtt_client
+
+import random
 
 def connect_mqtt():
     def on_connect(client, userdata, flags, rc):
@@ -21,18 +24,20 @@ def connect_mqtt():
     return client
 
 def send_MQTT():
-    lgr.info('sending')
-    client = connect_mqtt()
-    topic = "EMEWS/mqtt/heartbeat"
-    msg = f"messages: ok"
-    result = client.publish(topic, msg)
-    status = result[0]
-    if status == 0 :
-        lgr.info(f"Send `{msg}` to topic `{topic}`")
-    else :
-        lgr.error(f"Failed to send message to topic {topic}")
-
-    lgr.info('send done')
+    #lgr.info('sending')
+    print("Send")
+    #client = connect_mqtt()
+    #topic = "EMEWS/mqtt/heartbeat"
+    #msg = f"messages: ok"
+    #result = client.publish(topic, msg)
+    #status = result[0]
+    #if status == 0 :
+    #    lgr.info(f"Send `{msg}` to topic `{topic}`")
+    #else :
+    #    lgr.error(f"Failed to send message to topic {topic}")
+    sleep(5)
+    print("Finished")
+    #lgr.info('send done')
 
 if __name__ == "__main__":
     lgr = CommUtil.set_loggger('Data Capture Main')
@@ -41,31 +46,44 @@ if __name__ == "__main__":
     start_time =datetime.datetime.now()
     lgr.info('Start time {0}'.format(start_time))
 
+    #Dummy i
+    i=0;
 
     df=pd.DataFrame()
     try:
+
         lgr.info('Data Capture Start')
-        s = sr.Serial(Config.COM, 115200)
+        #s = sr.Serial(Config.COM, 115200)
         while (Config.COLLECT_DATA) :
-            line = s.readline()
-            line_str = line.decode()
-            vals = line_str.split(",")
-            time = time + int(vals[0])
-            amplitude = int(vals[1])
+            #Dummy data
+            #line = s.readline()
+            #line_str = line.decode()
+            #vals = line_str.split(",")
+            #time = time + int(vals[0])
+            #amplitude = int(vals[1])
+
+            i = i + 1
+
+            time=i
+            amplitude=random.randint(0,9)*1000
+            print(i)
 
             if (len(df) %1000)==0:
-                lgr.info('enable heartbeat')
+                #lgr.info('enable heartbeat')
                 new_row = {'id' : len(df) + 1, 'time' : time, 'amplitude' :amplitude,'heartbeat':True}
                 df = df.append(new_row, ignore_index=True)
-                lgr.info(new_row)
-                # thread = threading.Thread(target=send_MQTT(), daemon=True)
-                # thread.start()
+                #.info(new_row)
+                thread1 = threading.Thread(target=send_MQTT(), daemon=True)
+                thread1.start()
+
                 df.to_csv(r'output/data_{0:%Y%m%d%H%M%S}.csv'.format(datetime.datetime.now()))
             else:
                 new_row = {'id' : len(df) + 1, 'time' : time, 'amplitude' : amplitude,'heartbeat':False}
                 df = df.append(new_row, ignore_index=True)
-                lgr.info(new_row)
+                #lgr.info(new_row)
+
     except Exception as e:
+        print(e)
         lgr.error(str(e))
 
     lgr.info('---' * 20)
