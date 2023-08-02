@@ -1,0 +1,4 @@
+future==0.18.3
+awscrt==0.16.13
+pandas==1.5.3
+serial==0.0.97

@@ -3,88 +3,98 @@ import pandas as pd
 import datetime
 import serial as sr
 import threading
-from time import sleep
-
 from Config import Config
-#from paho.mqtt import client as mqtt_client
+import paho.mqtt.client as mqtt
+import time as t
 
-import random
+
+def on_connect(client, userdata, flags, rc):
+    print("Connected to MQTT broker with result code "+str(rc))
+
+def on_publish(client, userdata, mid):
+    print("Message published with mid: "+str(mid))
 
 def connect_mqtt():
-    def on_connect(client, userdata, flags, rc):
-        if rc == 0:
-            print("Connected to MQTT Broker!")
-        else:
-            print("Failed to connect, return code %d\n", rc)
-
-    client = mqtt_client.Client(Config.CLIENT_ID)
-    client.username_pw_set(Config.USERNAME, Config.PASSWORD)
+    client = mqtt.Client()
     client.on_connect = on_connect
     client.connect(Config.BROKER, Config.PORT)
     return client
 
-def send_MQTT():
-    #lgr.info('sending')
-    print("Send")
-    #client = connect_mqtt()
-    #topic = "EMEWS/mqtt/heartbeat"
-    #msg = f"messages: ok"
-    #result = client.publish(topic, msg)
-    #status = result[0]
-    #if status == 0 :
-    #    lgr.info(f"Send `{msg}` to topic `{topic}`")
-    #else :
-    #    lgr.error(f"Failed to send message to topic {topic}")
-    sleep(5)
-    print("Finished")
-    #lgr.info('send done')
+def publish_heatbeat(client):
+    client.on_publish = on_publish
+    client.publish(Config.TOPIC, "HB")
 
 if __name__ == "__main__":
     lgr = CommUtil.set_loggger('Data Capture Main')
     lgr.info('---' * 20)
     lgr.info('Data Capture Main')
-    start_time =datetime.datetime.now()
+    start_time = datetime.datetime.now()
     lgr.info('Start time {0}'.format(start_time))
 
-    #Dummy i
-    i=0;
+    df = pd.DataFrame()
 
-    df=pd.DataFrame()
+    i=0
+    time_stamp=0
+
+    #list for store the data
+    df_list = []
+
+    #Mqtt Start
+    client = connect_mqtt()
+    # Start the loop to process network traffic and dispatch callbacks
+    client.loop_start()
+
     try:
-
         lgr.info('Data Capture Start')
         #s = sr.Serial(Config.COM, 115200)
-        while (Config.COLLECT_DATA) :
-            #Dummy data
-            #line = s.readline()
-            #line_str = line.decode()
-            #vals = line_str.split(",")
-            #time = time + int(vals[0])
-            #amplitude = int(vals[1])
+        reading_index = 0
+        while (Config.COLLECT_DATA):
 
-            i = i + 1
+            line = bytearray()
+            byte = s.read()
+            while byte != b'\n':
+                line += byte
+                byte = s.read()
+            line = s.readline()
+            line_str = line.decode('utf-8', 'ignore')
+            vals = line_str.split(",")
+            time_stamp = time_stamp + int(vals[0])
+            amplitude = int(vals[1])
+            reading_index = reading_index + 1
 
-            time=i
-            amplitude=random.randint(0,9)*1000
-            print(i)
+            current_time = "{0:%Y%m%d%H%M%S}".format(datetime.datetime.now())
+            
+            #----Dummy data 
+            #amplitude = 100
+            #time_stamp=current_time
+            #amplitude=amplitude+1
 
-            if (len(df) %1000)==0:
-                #lgr.info('enable heartbeat')
-                new_row = {'id' : len(df) + 1, 'time' : time, 'amplitude' :amplitude,'heartbeat':True}
-                df = df.append(new_row, ignore_index=True)
-                #.info(new_row)
-                thread1 = threading.Thread(target=send_MQTT(), daemon=True)
-                thread1.start()
+            new_row = {'id':reading_index,'s_id': len(df_list) + 1,'stamp':current_time,'time': time_stamp, 'amplitude': amplitude}
+            df_list.append(new_row)
+            
+            #Temp commented
+            #df = pd.concat([df, pd.DataFrame([new_row])])
 
-                df.to_csv(r'output/data_{0:%Y%m%d%H%M%S}.csv'.format(datetime.datetime.now()))
-            else:
-                new_row = {'id' : len(df) + 1, 'time' : time, 'amplitude' : amplitude,'heartbeat':False}
-                df = df.append(new_row, ignore_index=True)
-                #lgr.info(new_row)
 
+
+            if (len(df_list) % 10000) == 0:
+                lgr.info('enable heartbeat at '+ str(len(df_list)))
+                
+                df = pd.DataFrame(df_list)
+                df.to_csv(r'output/data_{0:%Y%m%d%H%M%S}.csv'.format(datetime.datetime.now()),index=False)
+                thread = threading.Thread(target=publish_heatbeat, args=(client,), daemon=True)
+                thread.start()
+
+                # clear the dataframe
+                df.drop(index=df.index, columns=None, inplace=True)
+                #clear the list
+                df_list=[]
     except Exception as e:
-        print(e)
         lgr.error(str(e))
 
+    except KeyboardInterrupt:
+        lgr.info("Manual interruption")
+
+    df.to_csv(r'output/data_{0:%Y%m%d%H%M%S}.csv'.format(datetime.datetime.now()), index=False)
     lgr.info('---' * 20)
     lgr.info('Completed at {1}. Time taken {0}'.format(datetime.datetime.now() - start_time, lgr.info('---' * 20)))
